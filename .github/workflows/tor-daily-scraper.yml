@@ -1,7 +1,8 @@
-name: Codzienny Tor Scraper JSON
+name: Codzienny Tor Scraper
 
 on:
   schedule:
+    # 01:00 UTC oraz 13:00 UTC
     - cron: '0 1 * * *'
     - cron: '0 13 * * *'
   workflow_dispatch:
@@ -31,7 +32,10 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          # Dodajemy pliki json
-          git add latest.json history/*.json
-          git commit -m "Aktualizacja surowych danych JSON: $(date +'%Y-%m-%d %H:%M')" || echo "Brak zmian"
+          
+          # Dodajemy pliki
+          git add latest_*.json history/*.json
+          
+          # Commitujemy
+          git commit -m "Aktualizacja danych JSON: $(date +'%Y-%m-%d %H:%M')" || echo "Brak zmian"
           git push
