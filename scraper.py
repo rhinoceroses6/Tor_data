@@ -4,53 +4,58 @@ import os
 import sys
 from datetime import datetime
 
-def fetch_full_json():
-    url = "https://onionoo.torproject.org/details"
-    try:
-        response = requests.get(url, timeout=300)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        print(f"BŁĄD: {e}")
-        sys.exit(1)
-
 def main():
-    # Pobieramy pełne dane
-    full_data = fetch_full_json()
+    url = "https://onionoo.torproject.org/details"
+    print(f"[{datetime.now()}] Pobieranie...")
     
-    # Wyciągamy tablicę węzłów
-    relays = full_data.get("relays", [])
+    # Pobieramy surowy tekst (nie parsowany przez json.json() na starcie)
+    response = requests.get(url, timeout=300)
+    response.raise_for_status()
+    full_text = response.text
+
+    # Parsujemy tylko po to, żeby znaleźć miejsce podziału w tablicy "relays"
+    data = json.loads(full_text)
+    relays = data.get("relays", [])
     
-    # Tworzymy kopię nagłówka (wszystko co nie jest listą 'relays')
-    header = {k: v for k, v in full_data.items() if k != "relays"}
+    # Dzielimy indeksy
+    mid = len(relays) // 2
     
-    # Dzielimy listę węzłów na pół
-    midpoint = len(relays) // 2
+    # --- TERAZ MAGIA: Dzielimy tekstowo ---
+    # Znajdujemy fragmenty w tekście, żeby zachować surowy format API
+    # Szukamy początku tablicy relays
+    prefix = full_text.split('"relays":[')[0] + '"relays":['
+    suffix = ']}'
     
-    # Tworzymy dwa nowe słowniki, które mają ten sam nagłówek, co oryginał
-    data1 = header.copy()
-    data1["relays"] = relays[:midpoint]
+    # Rozdzielamy tablicę obiektów
+    relays_json_list = json.dumps(relays, separators=(',', ':'))[1:-1].split('},{')
     
-    data2 = header.copy()
-    data2["relays"] = relays[midpoint:]
+    # Naprawiamy nawiasy po splicie
+    p1 = [relays_json_list[i] + ('}' if i == 0 else ('{' + relays_json_list[i] + '}') if i < len(relays_json_list)-1 else '{') for i in range(len(relays_json_list))]
+    # To jest zbyt skomplikowane, uprośćmy:
+    
+    # PO PROSTU podzielmy listę obiektów na dwa stringi
+    part1_str = json.dumps(relays[:mid], separators=(',', ':'))[1:-1]
+    part2_str = json.dumps(relays[mid:], separators=(',', ':'))[1:-1]
+    
+    # Składamy: nagłówek + część_relays + zamykający nawias
+    final1 = prefix + part1_str + suffix
+    final2 = prefix + part2_str + suffix
 
     if not os.path.exists("history"):
         os.makedirs("history")
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     
-    def save_json(data, filename):
+    def save_raw(content, filename):
         with open(filename, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
+            f.write(content)
 
-    # Zapisujemy
-    save_json(data1, "latest_1.json")
-    save_json(data2, "latest_2.json")
-    
-    save_json(data1, f"history/tor_details_{timestamp}_part1.json")
-    save_json(data2, f"history/tor_details_{timestamp}_part2.json")
-    
-    print(f"Sukces! Dane z nagłówkiem podzielone na pół. Łącznie {len(relays)} węzłów.")
+    save_raw(final1, "latest_1.json")
+    save_raw(final2, "latest_2.json")
+    save_raw(final1, f"history/tor_details_{timestamp}_part1.json")
+    save_raw(final2, f"history/tor_details_{timestamp}_part2.json")
+
+    print("Gotowe. Pliki zachowują oryginalną strukturę nagłówka.")
 
 if __name__ == "__main__":
     main()
