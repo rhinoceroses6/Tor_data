@@ -1,55 +1,40 @@
 import requests
-import pandas as pd
+import json
 import os
 from datetime import datetime
 
-def fetch_and_process_tor_data():
+def fetch_full_json():
     url = "https://onionoo.torproject.org/details"
+    print(f"[{datetime.now()}] Pobieranie pełnego JSONa z Onionoo...")
+    
     try:
         response = requests.get(url, timeout=120)
         response.raise_for_status()
-        data = response.json()
+        # Zwracamy surowe dane (słownik Pythonowy)
+        return response.json()
     except Exception as e:
-        print(f"Błąd pobierania: {e}")
+        print(f"Błąd podczas pobierania: {e}")
         exit(1)
 
-    relays = data.get("relays", [])
-    processed = []
-    
-    for r in relays:
-        if not r.get("running", False):
-            continue
-            
-        platform = r.get("platform", "Unknown")
-        os_name = platform.split(" on ")[-1] if " on " in platform else platform
-        
-        processed.append({
-            "Nickname": r.get("nickname", "Unnamed"),
-            "Country": str(r.get("country", "??")).upper(),
-            "AS_Name": r.get("as_name", "Unknown"),
-            "Version": r.get("version", "Unknown"),
-            "OS": os_name,
-            "Consensus_Weight": r.get("consensus_weight", 0) or 0
-        })
-    return pd.DataFrame(processed)
-
 def main():
-    # 1. Pobierz dane
-    df = fetch_and_process_tor_data()
-    df.sort_values(by="Consensus_Weight", ascending=False, inplace=True)
+    data = fetch_full_json()
     
-    # 2. Przygotuj ścieżki
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    # Tworzymy folder historyczny
     if not os.path.exists("history"):
         os.makedirs("history")
     
-    # 3. Zapisz: 
-    # Plik główny (najświeższy)
-    df.to_csv("latest.csv", index=False, encoding='utf-8')
-    # Plik historyczny w folderze history/
-    df.to_csv(f"history/tor_report_{timestamp}.csv", index=False, encoding='utf-8')
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     
-    print(f"Zapisano dane o godzinie {timestamp}")
+    # Zapisujemy "latest.json" (zawsze najświeższy plik)
+    with open("latest.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+        
+    # Zapisujemy historię w folderze history/
+    history_filename = f"history/tor_details_{timestamp}.json"
+    with open(history_filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+        
+    print(f"Zapisano pełny zrzut danych: {history_filename}")
 
 if __name__ == "__main__":
     main()
