@@ -2,18 +2,14 @@ name: Codzienny Tor Scraper
 
 on:
   schedule:
-    # Uruchamia się codziennie o 01:15 UTC (API Tor odświeża się co godzinę)
-    # Zapis w formacie CRON: "minuta godzina dzień miesiąc dzień_tygodnia"
-    - cron: '15 1 * * *'
+    # 01:00 UTC oraz 13:00 UTC
+    - cron: '0 1 * * *'
+    - cron: '0 13 * * *'
   workflow_dispatch:
-    # Ta opcja pozwala Ci na ręczne wymuszenie uruchomienia skryptu 
-    # prosto z zakładki "Actions" na GitHubie (przycisk "Run workflow")
 
 jobs:
   scrape-and-save:
     runs-on: ubuntu-latest
-
-    # Aby GitHub Actions mogło zapisywać pliki (tworzyć commity) w Twoim repozytorium:
     permissions:
       contents: write
 
@@ -34,14 +30,10 @@ jobs:
       - name: Uruchom skrypt scraper.py
         run: python scraper.py
 
-      - name: Zapisz (Commit) i wypchnij (Push) nowe dane do repozytorium
+      - name: Zapisz (Commit) i wypchnij (Push) nowe dane
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add *.csv
-          
-          # Git commit wyrzuci błąd, jeśli nic się nie zmieniło. 
-          # To zabezpieczenie "|| echo 'Brak zmian'" zapobiega awarii procesu.
-          git commit -m "Automatyczna aktualizacja danych Tor: $(date +'%Y-%m-%d')" || echo "Brak zmian do zapisu"
-          
+          git add *.csv *.json
+          git commit -m "Aktualizacja danych Tor: $(date +'%Y-%m-%d %H:%M')" || echo "Brak zmian"
           git push
